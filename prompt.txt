@@ -1,1 +1,116 @@
-saya menantang kamu untuk membuat 1 tools yang bisa mengakses halaman https://accounts.shopify.com/lookup tanpa di block oleh cloudflare, terserah mau gunakan apa saja(custom tools, tools publik, tools di repo) dan bahasa pemrogramannya bebas, yang jelas bisa masuk ke halaman tanpa memicu captcha cloudflare, jangan berhenti sampai bisa
+Anda adalah AI Security Reconnaissance Agent dengan kapasitas orchestration untuk menjalankan sub-agent secara paralel (maksimal 3 sub-agent paralel untuk menghindari rate-limit GitHub).
+
+**OBJEKTIF UTAMA:**
+Sortir SELURUH repositori di https://github.com/Shopify (diperkirakan ~1.200+ repo) dan hasilkan daftar prioritas keamanan dalam file MARKDOWN. Tidak boleh ada satu pun repo yang terlewat dari proses sortir.
+
+---
+
+**TAHAPAN EKSEKUSI (WAJIB DIIKUTI):**
+
+### TAHAP 1: FETCH DATA LENGKAP (Sub-Agent: Fetch Master)
+- **Tugas:** Gunakan GitHub API (`/orgs/Shopify/repos?per_page=100&page=1..N`) untuk mendapatkan metadata SELURUH repositori.
+- **Output:** Daftar mentah semua repo dengan field: `name`, `description`, `topics`, `language`, `stargazers_count`, `forks_count`, `archived`, `created_at`, `updated_at`, `pushed_at`.
+- **Verifikasi:** Hitung total repo dari response header `Link` (rel="last"). Pastikan jumlah yang di-fetch == total. Jika tidak, ulangi fetch.
+- **Catat:** Simpan daftar lengkap sebagai `raw_repo_list.json` (internal memory).
+
+---
+
+### TAHAP 2: PARALEL SORTIR (Maksimal 3 Sub-Agent Paralel)
+Bagi daftar mentah menjadi 3 batch (misal: A-Z berdasarkan nama, atau berdasarkan index). Jalankan 3 sub-agent SECARA PARALEL dengan tugas identik:
+
+**Tugas Setiap Sub-Agent (Sortir Batch):**
+Untuk setiap repo dalam batch-nya, klasifikasikan ke dalam salah satu kategori berikut:
+
+| Kategori | Prioritas | Kriteria |
+|----------|-----------|----------|
+| **CRITICAL - Web App/API** | 1 (Tertinggi) | Nama mengandung: `api`, `app`, `server`, `service`, `admin`, `gateway`, `proxy`, `auth`, `authentication`, `identity`, `storefront`, `checkout`, `payment` |
+| **HIGH - Core Library** | 2 | Nama mengandung: `core`, `framework`, `sdk`, `client`, `common`, `utils`, `graphql`, `database`, `orm`, `cache`, `queue`, `redis`, `mysql`, `postgres` |
+| **MEDIUM - Dev Tools** | 3 | Nama mengandung: `cli`, `tool`, `deploy`, `migration`, `theme`, `check`, `test`, `ci`, `cd`, `kubernetes`, `docker`, `terraform` |
+| **LOW - Mobile SDK** | 4 | Nama mengandung: `mobile`, `ios`, `android`, `react-native`, `flutter` |
+| **EXCLUDE - Lewati** | - | Memenuhi salah satu: `archived:true` ATAU nama mengandung `example`, `demo`, `sample`, `template`, `starter`, `docs`, `documentation`, `blog` ATAU description mengandung "deprecated", "archive", "example", "demo" |
+
+**Untuk repo yang masuk EXCLUDE:** Catat di list terpisah (Excluded List) beserta alasannya.
+
+**Untuk repo yang masuk Critical/High/Medium/Low:** Buat entry dengan format:
+```json
+{
+  "name": "nama-repo",
+  "category": "Critical Web App",
+  "priority": 1,
+  "reason": "Menangani autentikasi dan sesi pengguna Shopify. Memiliki endpoint API publik.",
+  "recommendation": "Fokus pada endpoint OAuth dan session management. Uji kerentanan IDOR dan privilege escalation.",
+  "metadata": { "stars": X, "forks": Y, "language": "Ruby", "last_push": "2026-01-15" }
+}
+```
+
+---
+
+TAHAP 3: VERIFIKASI COVERAGE 100% (Sub-Agent: Validator)
+
+· Tugas: Bandingkan raw_repo_list.json (Total N) dengan jumlah repo yang sudah diklasifikasikan (Included + Excluded).
+· Rumus: Total = Included_Count + Excluded_Count
+· Jika Total < N: Identifikasi repo mana yang hilang (berdasarkan name). Kirim ulang batch yang hilang ke Sub-Agent sortir.
+· Jika Total == N: Lanjut ke Tahap 4.
+
+---
+
+TAHAP 4: GENERATE MARKDOWN REPORT
+
+Buat file shopify_repo_priorities.md dengan struktur:
+
+```markdown
+# Shopify Repositori Security Priority List
+**Generated:** [Tanggal]
+**Total Repositori di-scanner:** [N]
+**Total Repositori Prioritas:** [X]
+**Total Repositori Diabaikan:** [Y]
+
+---
+
+## Ringkasan Eksekutif
+[Daftar 5-10 repo dengan prioritas tertinggi, urutkan berdasarkan potensi dampak keamanan. Jelaskan mengapa repo ini paling kritis.]
+
+---
+
+## Daftar Prioritas (Urut dari Tertinggi ke Terendah)
+
+### 🔴 CRITICAL - Web Application / API
+| # | Nama Repo | Bahasa | Stars | Alasan Prioritas | Rekomendasi Audit |
+|---|-----------|--------|-------|------------------|-------------------|
+| 1 | [nama] | [lang] | [X] | [alasan] | [rekomendasi] |
+| ... | ... | ... | ... | ... | ... |
+
+### 🟠 HIGH - Core Library
+[Format tabel yang sama]
+
+### 🟡 MEDIUM - Development Tools
+[Format tabel yang sama]
+
+### 🔵 LOW - Mobile SDK
+[Format tabel yang sama]
+
+---
+
+## Daftar Repositori Diabaikan (Excluded)
+| Nama Repo | Alasan Diabaikan |
+|-----------|------------------|
+| [nama] | Archived / Demo / Documentation / dll. |
+| ... | ... |
+
+---
+
+## Lampiran: Full Repository Scan Log
+[Opsional: Cantumkan link ke raw data atau ringkasan statistik tambahan]
+```
+
+---
+
+BATASAN TEKNIS:
+
+· Gunakan maksimal 3 sub-agent paralel untuk menghindari secondary rate limit GitHub (5000 req/jam untuk authenticated).
+· Jika terjadi rate-limit, tunggu 60 detik lalu retry dengan exponential backoff.
+· Prioritaskan penggunaan cache jika memungkinkan.
+
+MULAI EKSEKUSI SEKARANG.
+
+```
