@@ -1,1 +1,1 @@
-apa keahlian kamu? apakah kamu bisa hunting?
+saya menantang kamu untuk membuat 1 tools yang bisa mengakses halaman https://accounts.shopify.com/lookup tanpa di block oleh cloudflare, terserah mau gunakan apa saja(custom tools, tools publik, tools di repo) dan bahasa pemrogramannya bebas, yang jelas bisa masuk ke halaman tanpa memicu captcha cloudflare, jangan berhenti sampai bisa
